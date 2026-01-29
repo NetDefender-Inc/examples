@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Custom styles for Handsontable in dark mode */
+.htDark {
+  --ht-cell-color: #ededed;
+  --ht-cell-bg: #1a1a1a;
+  --ht-cell-border-color: #333;
+  --ht-header-bg: #252525;
+  --ht-header-color: #ededed;
+  --ht-row-header-bg: #252525;
+  --ht-selection-bg: rgba(59, 130, 246, 0.3);
+  --ht-selection-border-color: #3b82f6;
+}
+
+/* Ensure Handsontable fits well in dark theme */
+.handsontable {
+  font-size: 13px;
+}
+
+.handsontable th {
+  background-color: #252525 !important;
+  color: #ededed !important;
+  border-color: #404040 !important;
+}
+
+.handsontable td {
+  background-color: #1a1a1a !important;
+  color: #ededed !important;
+  border-color: #333 !important;
+}
+
+.handsontable td.area {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+}
+
+.handsontable .wtBorder {
+  background-color: #3b82f6 !important;
+}
+
+/* Context menu styling */
+.htContextMenu {
+  background-color: #1a1a1a !important;
+  border-color: #404040 !important;
+}
+
+.htContextMenu td {
+  background-color: #1a1a1a !important;
+  color: #ededed !important;
+}
+
+.htContextMenu td:hover {
+  background-color: #333 !important;
+}
+
+.htContextMenu td.htDisabled {
+  color: #666 !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #404040;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Composer input height override */
+.crayon-shell-thread-composer__input {
+  height: unset !important;
+}

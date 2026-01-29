@@ -55,6 +55,31 @@ function ChatWithTable() {
       customizeC1={{
         customComponents: { SpreadsheetTable },
       }}
+      welcomeMessage={{
+        title: "Hi, I'm your Spreadsheet Assistant",
+        description: "I can help you create, analyze, and work with data in Excel-like spreadsheets with formulas and calculations.",
+      }}
+      conversationStarters={{
+        variant: "short",
+        options: [
+          { 
+            displayText: "Create a sample budget", 
+            prompt: "Create a sample monthly budget spreadsheet with income and expenses" 
+          },
+          { 
+            displayText: "Sales data analysis", 
+            prompt: "Create a sales data table with product names, quantities, prices, and calculate totals" 
+          },
+          { 
+            displayText: "What can you do?", 
+            prompt: "What can you help me with? Show me your capabilities" 
+          },
+          { 
+            displayText: "Add formulas", 
+            prompt: "Show me how to use formulas like SUM, AVERAGE, and IF in the spreadsheet" 
+          },
+        ],
+      }}
     />
   );
 }

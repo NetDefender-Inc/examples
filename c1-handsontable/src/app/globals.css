@@ -87,3 +87,8 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
+
+/* Composer input height override */
+.crayon-shell-thread-composer__input {
+  height: unset !important;
+}

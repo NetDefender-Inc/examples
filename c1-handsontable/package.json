@@ -9,10 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@crayonai/react-ui": "0.9",
+    "@crayonai/react-ui": "0.9.15",
     "@crayonai/stream": "0.6.4",
-    "@thesysai/genui-sdk": "0.7.1",
-    "@crayonai/react-core": "^0.7.6",
+    "@thesysai/genui-sdk": "0.8.0",
+    "@crayonai/react-core": "0.7.7",
     "@handsontable/react-wrapper": "^16.2.0",
     "handsontable": "^16.2.0",
     "hyperformula": "^3.0.0",

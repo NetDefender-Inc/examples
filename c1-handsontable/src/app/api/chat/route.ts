@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
   });
 
   const llmStream = client.chat.completions.runTools({
-    model: "c1/anthropic/claude-sonnet-4/v-20250930",
+    model: "c1/anthropic/claude-sonnet-4/v-20251230",
     messages: messageStore.getOpenAICompatibleMessageList(),
     stream: true,
     tools,

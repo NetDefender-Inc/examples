@@ -3,11 +3,17 @@
 import "@crayonai/react-ui/styles/index.css";
 import "handsontable/styles/handsontable.css";
 import "handsontable/styles/ht-theme-main.css";
-import { useOnAction, useC1State } from "@thesysai/genui-sdk";
+import { useOnAction } from "@thesysai/genui-sdk";
 import { useEffect, useRef, useCallback, useState } from "react";
 import type { CellChange, ChangeSource } from "handsontable/common";
+import { useTableContext } from "./TableContext";
 
 type CellValue = string | number | null;
+
+// Deep clone to create mutable arrays that Handsontable can modify
+function deepClone<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
+}
 
 interface SpreadsheetTableProps {
   data: CellValue[][];
@@ -24,21 +30,28 @@ let HyperFormula: any = null;
 let modulesLoaded = false;
 
 export const SpreadsheetTable = ({
-  data,
-  colHeaders,
+  data: initialData,
+  colHeaders: initialColHeaders,
   height = 400,
   title,
 }: SpreadsheetTableProps) => {
   const onAction = useOnAction();
+  const { syncTableData } = useTableContext();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hotRef = useRef<any>(null);
   const [isClient, setIsClient] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Track props data to detect AI updates
+  const lastPropsDataRef = useRef<string>(JSON.stringify(initialData));
+  const lastPropsHeadersRef = useRef<string>(JSON.stringify(initialColHeaders));
+  
+  // Track if we're currently syncing to prevent loops
+  const isSyncingRef = useRef(false);
 
-  // Use C1 state to persist table data across renders
-  const { getValue, setValue } = useC1State("spreadsheetData");
-
-  // Initialize state with props data if not already set
-  const currentData: CellValue[][] = getValue() || data;
+  // Store colHeaders in ref for use in callbacks
+  const colHeadersRef = useRef(initialColHeaders);
+  colHeadersRef.current = initialColHeaders;
 
   // Load Handsontable only on client side
   useEffect(() => {
@@ -49,27 +62,84 @@ export const SpreadsheetTable = ({
           import("hyperformula"),
           import("handsontable/registry"),
         ]);
-        
+
         HotTable = hotModule.HotTable;
         HyperFormula = hfModule.HyperFormula;
         registryModule.registerAllModules();
         modulesLoaded = true;
-        
+
         setIsClient(true);
       } else if (modulesLoaded) {
         setIsClient(true);
       }
     };
-    
+
     loadHandsontable();
   }, []);
 
-  // Update state when new data comes from props
+  // Save data to backend
+  const saveData = useCallback(
+    async (data: CellValue[][]) => {
+      if (isSyncingRef.current) return;
+
+      try {
+        isSyncingRef.current = true;
+        await syncTableData(data, colHeadersRef.current);
+      } catch (error) {
+        console.error("Failed to save table data:", error);
+      } finally {
+        isSyncingRef.current = false;
+      }
+    },
+    [syncTableData]
+  );
+
+  // Load initial data after Handsontable mounts
   useEffect(() => {
-    if (data && JSON.stringify(data) !== JSON.stringify(getValue())) {
-      setValue(data);
+    const hot = hotRef.current?.hotInstance;
+    if (!hot || isInitialized) return;
+
+    // Load initial data with a deep clone to ensure mutability
+    const mutableData = deepClone(initialData);
+    hot.loadData(mutableData);
+    
+    // Update column headers
+    if (initialColHeaders) {
+      hot.updateSettings({ colHeaders: initialColHeaders });
     }
-  }, [data, getValue, setValue]);
+    
+    setIsInitialized(true);
+    
+    // Sync to backend
+    saveData(initialData);
+  }, [isClient, initialData, initialColHeaders, isInitialized, saveData]);
+
+  // Handle prop changes (AI updates) after initial load
+  useEffect(() => {
+    const hot = hotRef.current?.hotInstance;
+    if (!hot || !isInitialized) return;
+
+    const propsDataStr = JSON.stringify(initialData);
+    const propsHeadersStr = JSON.stringify(initialColHeaders);
+    
+    // Check if data actually changed
+    if (propsDataStr !== lastPropsDataRef.current) {
+      lastPropsDataRef.current = propsDataStr;
+      
+      // Load new data with a deep clone
+      const mutableData = deepClone(initialData);
+      hot.loadData(mutableData);
+      
+      // Sync to backend
+      saveData(initialData);
+    }
+    
+    // Update column headers if changed
+    if (propsHeadersStr !== lastPropsHeadersRef.current) {
+      lastPropsHeadersRef.current = propsHeadersStr;
+      hot.updateSettings({ colHeaders: initialColHeaders || true });
+    }
+  }, [initialData, initialColHeaders, isInitialized, saveData]);
 
   // Safe wrapper for onAction that catches errors
   const safeOnAction = useCallback(
@@ -79,27 +149,32 @@ export const SpreadsheetTable = ({
           onAction(humanMessage, llmMessage);
         }
       } catch (error) {
-        // Silently ignore errors - the action context might not be ready
         console.debug("onAction not available:", error);
       }
     },
     [onAction]
   );
 
-  // Handle cell changes - only sync data, don't trigger action for every change
+  // Autosave after changes
   const handleAfterChange = useCallback(
     (changes: CellChange[] | null, source: ChangeSource) => {
-      if (!changes || source === "loadData") return;
+      // Skip saving on initial data load
+      if (source === "loadData") {
+        return;
+      }
 
-      const hotInstance = hotRef.current?.hotInstance;
-      if (!hotInstance) return;
+      if (!changes) return;
 
-      // Get the updated data from Handsontable
-      const newData = hotInstance.getData() as CellValue[][];
-      setValue(newData);
+      const hot = hotRef.current?.hotInstance;
+      if (!hot) return;
 
-      // Only notify AI for user-initiated edits, not internal operations
+      // Get all data and save it
+      const allData = hot.getData() as CellValue[][];
+      saveData(allData);
+
+      // Notify AI about user edits
       if (source === "edit") {
+        const colHeaders = colHeadersRef.current;
         const changeDescriptions = changes.map(([row, col, oldVal, newVal]) => {
           const colName =
             colHeaders && typeof col === "number" ? colHeaders[col] : `Column ${col}`;
@@ -112,49 +187,67 @@ export const SpreadsheetTable = ({
         );
       }
     },
-    [colHeaders, safeOnAction, setValue]
+    [saveData, safeOnAction]
   );
 
-  // Handle row/column operations - only sync data without triggering action
-  // This prevents errors when the C1 context isn't ready
+  // Handle row creation
   const handleAfterCreateRow = useCallback(
-    (_index: number, _amount: number) => {
-      const hotInstance = hotRef.current?.hotInstance;
-      if (hotInstance) {
-        setValue(hotInstance.getData() as CellValue[][]);
+    (index: number, amount: number) => {
+      const hot = hotRef.current?.hotInstance;
+      if (hot) {
+        saveData(hot.getData() as CellValue[][]);
+        safeOnAction(
+          "Rows Added",
+          `User added ${amount} row(s) at position ${index + 1}`
+        );
       }
     },
-    [setValue]
+    [saveData, safeOnAction]
   );
 
+  // Handle row removal
   const handleAfterRemoveRow = useCallback(
-    (_index: number, _amount: number) => {
-      const hotInstance = hotRef.current?.hotInstance;
-      if (hotInstance) {
-        setValue(hotInstance.getData() as CellValue[][]);
+    (index: number, amount: number) => {
+      const hot = hotRef.current?.hotInstance;
+      if (hot) {
+        saveData(hot.getData() as CellValue[][]);
+        safeOnAction(
+          "Rows Removed",
+          `User removed ${amount} row(s) starting at position ${index + 1}`
+        );
       }
     },
-    [setValue]
+    [saveData, safeOnAction]
   );
 
+  // Handle column creation
   const handleAfterCreateCol = useCallback(
-    (_index: number, _amount: number) => {
-      const hotInstance = hotRef.current?.hotInstance;
-      if (hotInstance) {
-        setValue(hotInstance.getData() as CellValue[][]);
+    (index: number, amount: number) => {
+      const hot = hotRef.current?.hotInstance;
+      if (hot) {
+        saveData(hot.getData() as CellValue[][]);
+        safeOnAction(
+          "Columns Added",
+          `User added ${amount} column(s) at position ${index + 1}`
+        );
       }
     },
-    [setValue]
+    [saveData, safeOnAction]
   );
 
+  // Handle column removal
   const handleAfterRemoveCol = useCallback(
-    (_index: number, _amount: number) => {
-      const hotInstance = hotRef.current?.hotInstance;
-      if (hotInstance) {
-        setValue(hotInstance.getData() as CellValue[][]);
+    (index: number, amount: number) => {
+      const hot = hotRef.current?.hotInstance;
+      if (hot) {
+        saveData(hot.getData() as CellValue[][]);
+        safeOnAction(
+          "Columns Removed",
+          `User removed ${amount} column(s) starting at position ${index + 1}`
+        );
       }
     },
-    [setValue]
+    [saveData, safeOnAction]
   );
 
   // Show loading state while Handsontable is loading
@@ -166,7 +259,7 @@ export const SpreadsheetTable = ({
             {title}
           </h3>
         )}
-        <div 
+        <div
           className="flex items-center justify-center rounded-lg bg-neutral-800/50"
           style={{ height }}
         >
@@ -174,7 +267,7 @@ export const SpreadsheetTable = ({
         </div>
         <div className="mt-3 flex items-center justify-between text-xs text-neutral-400">
           <span>
-            {currentData.length} rows × {colHeaders?.length || currentData[0]?.length || 0} columns
+            {initialData.length} rows × {initialColHeaders?.length || initialData[0]?.length || 0} columns
           </span>
           <span>Right-click for options • Formulas supported (=SUM, =AVERAGE, etc.)</span>
         </div>
@@ -195,8 +288,9 @@ export const SpreadsheetTable = ({
       <div className="overflow-hidden rounded-lg">
         <HotTableComponent
           ref={hotRef}
-          data={currentData}
-          colHeaders={colHeaders || true}
+          startRows={initialData.length}
+          startCols={initialColHeaders?.length || initialData[0]?.length || 6}
+          colHeaders={initialColHeaders || true}
           rowHeaders={true}
           height={height}
           stretchH="all"
@@ -234,7 +328,7 @@ export const SpreadsheetTable = ({
       </div>
       <div className="mt-3 flex items-center justify-between text-xs text-neutral-400">
         <span>
-          {currentData.length} rows × {colHeaders?.length || currentData[0]?.length || 0} columns
+          {initialData.length} rows × {initialColHeaders?.length || initialData[0]?.length || 0} columns
         </span>
         <span>Right-click for options • Formulas supported (=SUM, =AVERAGE, etc.)</span>
       </div>

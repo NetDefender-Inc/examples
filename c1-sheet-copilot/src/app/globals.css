@@ -7,6 +7,13 @@
   --foreground: #ededed;
 }
 
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   color: var(--foreground);
   background: var(--background);
@@ -118,13 +125,31 @@ body {
 /* Persistent spreadsheet styling */
 .persistent-spreadsheet {
   background-color: #0f0f0f;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
+.persistent-spreadsheet > div:first-child {
+  flex-shrink: 0;
+}
+
+.persistent-spreadsheet > div:nth-child(2) {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.persistent-spreadsheet > div:last-child {
+  flex-shrink: 0;
+}
+
+/* Ensure Handsontable is interactive */
 .persistent-spreadsheet .handsontable {
-  height: 100% !important;
+  position: relative;
+  z-index: 1;
 }
 
-/* Ensure the Handsontable container fills the space */
 .persistent-spreadsheet .wtHolder {
-  height: 100% !important;
+  width: 100% !important;
 }

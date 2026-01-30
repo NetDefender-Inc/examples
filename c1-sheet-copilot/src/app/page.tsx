@@ -7,7 +7,7 @@ import {
   useThreadListManager,
   useThreadManager,
 } from "@thesysai/genui-sdk";
-import { SpreadsheetTable } from "./components";
+import { SpreadsheetTable, PersistentSpreadsheet } from "./components";
 import { TableProvider, useTableContext } from "./TableContext";
 import { useEffect } from "react";
 
@@ -93,7 +93,16 @@ export default function Home() {
   return (
     <ThemeProvider mode="dark">
       <TableProvider>
-        <ChatWithTable />
+        <div className="app-layout">
+          {/* Left panel: Persistent Spreadsheet */}
+          <div className="spreadsheet-panel">
+            <PersistentSpreadsheet />
+          </div>
+          {/* Right panel: Chat */}
+          <div className="chat-panel">
+            <ChatWithTable />
+          </div>
+        </div>
       </TableProvider>
     </ThemeProvider>
   );

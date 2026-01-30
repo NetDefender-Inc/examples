@@ -92,3 +92,39 @@ body {
 .crayon-shell-thread-composer__input {
   height: unset !important;
 }
+
+/* Side-by-side layout */
+.app-layout {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.spreadsheet-panel {
+  flex: 0 0 60%;
+  height: 100%;
+  background-color: #0f0f0f;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.chat-panel {
+  flex: 0 0 40%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Persistent spreadsheet styling */
+.persistent-spreadsheet {
+  background-color: #0f0f0f;
+}
+
+.persistent-spreadsheet .handsontable {
+  height: 100% !important;
+}
+
+/* Ensure the Handsontable container fills the space */
+.persistent-spreadsheet .wtHolder {
+  height: 100% !important;
+}

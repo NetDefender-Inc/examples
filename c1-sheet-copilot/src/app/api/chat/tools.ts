@@ -79,7 +79,6 @@ const addColumnArgsSchema = z.object({
     .describe("Zero-based column index where to insert. If omitted, appends at the end."),
 });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const tools: RunnableToolFunctionWithParse<any>[] = [
   {
     type: "function",

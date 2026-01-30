@@ -23,9 +23,7 @@ interface SpreadsheetTableProps {
 }
 
 // Lazy-loaded Handsontable component to avoid SSR issues
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let HotTable: any = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let HyperFormula: any = null;
 let modulesLoaded = false;
 
@@ -37,7 +35,6 @@ export const SpreadsheetTable = ({
 }: SpreadsheetTableProps) => {
   const onAction = useOnAction();
   const { syncTableData } = useTableContext();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hotRef = useRef<any>(null);
   const [isClient, setIsClient] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);

@@ -18,8 +18,8 @@ function ChatWithTable() {
     fetchThreadList: async () => [],
     createThread: async () => {
       const id = crypto.randomUUID();
-      return { 
-        threadId: id, 
+      return {
+        threadId: id,
         title: "New Thread",
         createdAt: new Date(),
       };
@@ -50,6 +50,7 @@ function ChatWithTable() {
 
   return (
     <C1Chat
+      formFactor="side-panel"
       threadManager={threadManager}
       threadListManager={threadListManager}
       customizeC1={{
@@ -57,26 +58,30 @@ function ChatWithTable() {
       }}
       welcomeMessage={{
         title: "Hi, I'm your Spreadsheet Assistant",
-        description: "I can help you create, analyze, and work with data in Excel-like spreadsheets with formulas and calculations.",
+        description:
+          "I can help you create, analyze, and work with data in Excel-like spreadsheets with formulas and calculations.",
       }}
       conversationStarters={{
         variant: "short",
         options: [
-          { 
-            displayText: "Create a sample budget", 
-            prompt: "Create a sample monthly budget spreadsheet with income and expenses" 
+          {
+            displayText: "Create a sample budget",
+            prompt:
+              "Create a sample monthly budget spreadsheet with income and expenses",
           },
-          { 
-            displayText: "Sales data analysis", 
-            prompt: "Create a sales data table with product names, quantities, prices, and calculate totals" 
+          {
+            displayText: "Sales data analysis",
+            prompt:
+              "Create a sales data table with product names, quantities, prices, and calculate totals",
           },
-          { 
-            displayText: "What can you do?", 
-            prompt: "What can you help me with? Show me your capabilities" 
+          {
+            displayText: "What can you do?",
+            prompt: "What can you help me with? Show me your capabilities",
           },
-          { 
-            displayText: "Add formulas", 
-            prompt: "Show me how to use formulas like SUM, AVERAGE, and IF in the spreadsheet" 
+          {
+            displayText: "Add formulas",
+            prompt:
+              "Show me how to use formulas like SUM, AVERAGE, and IF in the spreadsheet",
           },
         ],
       }}

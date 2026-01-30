@@ -109,7 +109,8 @@ body {
 }
 
 .spreadsheet-panel {
-  flex: 0 0 60%;
+  flex: 1 1 auto;
+  min-width: 0;
   height: 100%;
   background-color: #0f0f0f;
   border-right: 1px solid rgba(255, 255, 255, 0.1);
@@ -117,7 +118,7 @@ body {
 }
 
 .chat-panel {
-  flex: 0 0 40%;
+  flex: 0 0 400px;
   height: 100%;
   overflow: hidden;
 }

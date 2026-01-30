@@ -231,6 +231,26 @@ export const PersistentSpreadsheet = () => {
     }
   }, [saveData]);
 
+  // Export to CSV
+  const handleExportCSV = useCallback(() => {
+    const hot = hotRef.current?.hotInstance;
+    if (!hot) return;
+
+    const exportPlugin = hot.getPlugin('exportFile');
+    exportPlugin?.downloadFile('csv', {
+      bom: false,
+      columnDelimiter: ',',
+      columnHeaders: true,
+      exportHiddenColumns: true,
+      exportHiddenRows: true,
+      fileExtension: 'csv',
+      filename: 'Spreadsheet_[YYYY]-[MM]-[DD]',
+      mimeType: 'text/csv',
+      rowDelimiter: '\r\n',
+      rowHeaders: false,
+    });
+  }, []);
+
   // Show loading state while Handsontable is loading
   if (!isClient || !HotTable || !HyperFormula) {
     return (
@@ -250,10 +270,25 @@ export const PersistentSpreadsheet = () => {
   return (
     <div className="persistent-spreadsheet h-full flex flex-col">
       <div className="flex-none px-4 py-3 border-b border-white/10">
-        <h2 className="text-lg font-semibold text-neutral-100">Spreadsheet</h2>
-        <p className="text-xs text-neutral-400 mt-1">
-          {currentData.length} rows × {currentHeaders?.length || currentData[0]?.length || 0} columns
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-neutral-100">Spreadsheet</h2>
+            <p className="text-xs text-neutral-400 mt-1">
+              {currentData.length} rows × {currentHeaders?.length || currentData[0]?.length || 0} columns
+            </p>
+          </div>
+          <button
+            onClick={handleExportCSV}
+            className="px-3 py-1.5 text-sm bg-neutral-700 hover:bg-neutral-600 text-neutral-100 rounded-md transition-colors flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Export CSV
+          </button>
+        </div>
       </div>
       <div ref={containerRef} className="flex-1 overflow-hidden">
         <HotTableComponent

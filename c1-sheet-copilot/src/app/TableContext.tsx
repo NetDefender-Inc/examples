@@ -4,9 +4,16 @@ import { createContext, useContext, useState, useCallback, ReactNode } from "rea
 
 type CellValue = string | number | null;
 
+interface TableData {
+  data: CellValue[][];
+  colHeaders?: string[];
+}
+
 interface TableContextType {
   threadId: string | null;
   setThreadId: (id: string) => void;
+  tableData: TableData | null;
+  setTableData: (data: CellValue[][], colHeaders?: string[]) => void;
   syncTableData: (data: CellValue[][], colHeaders?: string[]) => Promise<void>;
   fetchTableData: () => Promise<{ data: CellValue[][]; colHeaders: string[] } | null>;
 }
@@ -15,15 +22,23 @@ const TableContext = createContext<TableContextType | null>(null);
 
 export function TableProvider({ children }: { children: ReactNode }) {
   const [threadId, setThreadIdState] = useState<string | null>(null);
+  const [tableData, setTableDataState] = useState<TableData | null>(null);
 
   const setThreadId = useCallback((id: string) => {
     setThreadIdState(id);
   }, []);
 
+  const setTableData = useCallback((data: CellValue[][], colHeaders?: string[]) => {
+    setTableDataState({ data, colHeaders });
+  }, []);
+
   const syncTableData = useCallback(
     async (data: CellValue[][], colHeaders?: string[]) => {
+      // Always update local state, even without threadId
+      setTableDataState({ data, colHeaders });
+
       if (!threadId) {
-        console.warn("Cannot sync table data: no threadId set");
+        console.warn("Cannot sync table data to server: no threadId set");
         return;
       }
 
@@ -71,6 +86,8 @@ export function TableProvider({ children }: { children: ReactNode }) {
       value={{
         threadId,
         setThreadId,
+        tableData,
+        setTableData,
         syncTableData,
         fetchTableData,
       }}

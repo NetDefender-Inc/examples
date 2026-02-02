@@ -3,7 +3,6 @@
 import "@crayonai/react-ui/styles/index.css";
 import "handsontable/styles/handsontable.css";
 import "handsontable/styles/ht-theme-main.css";
-import { useOnAction } from "@thesysai/genui-sdk";
 import { useEffect, useRef, useCallback, useState } from "react";
 import type { CellChange, ChangeSource } from "handsontable/common";
 import { useTableContext } from "./TableContext";
@@ -18,8 +17,6 @@ function deepClone<T>(obj: T): T {
 interface SpreadsheetTableProps {
   data: CellValue[][];
   colHeaders?: string[];
-  height?: number;
-  title?: string;
 }
 
 // Lazy-loaded Handsontable component to avoid SSR issues
@@ -27,28 +24,83 @@ let HotTable: any = null;
 let HyperFormula: any = null;
 let modulesLoaded = false;
 
+// SpreadsheetTable: Syncs AI-generated data to the persistent spreadsheet (no visible rendering in chat)
 export const SpreadsheetTable = ({
   data: initialData,
   colHeaders: initialColHeaders,
-  height = 400,
-  title,
 }: SpreadsheetTableProps) => {
-  const onAction = useOnAction();
   const { syncTableData } = useTableContext();
+  const hasSyncedRef = useRef(false);
+  const lastDataRef = useRef<string>("");
+
+  // Sync data to context whenever props change
+  useEffect(() => {
+    const dataStr = JSON.stringify({ data: initialData, colHeaders: initialColHeaders });
+    
+    // Only sync if data actually changed
+    if (dataStr !== lastDataRef.current) {
+      lastDataRef.current = dataStr;
+      syncTableData(initialData, initialColHeaders);
+      hasSyncedRef.current = true;
+    }
+  }, [initialData, initialColHeaders, syncTableData]);
+
+  // Render nothing - data is shown in the persistent spreadsheet panel
+  return null;
+};
+
+// Default empty spreadsheet data
+const DEFAULT_DATA: CellValue[][] = [
+  [null, null, null, null, null, null],
+  [null, null, null, null, null, null],
+  [null, null, null, null, null, null],
+  [null, null, null, null, null, null],
+  [null, null, null, null, null, null],
+  [null, null, null, null, null, null],
+  [null, null, null, null, null, null],
+  [null, null, null, null, null, null],
+  [null, null, null, null, null, null],
+  [null, null, null, null, null, null],
+];
+
+// Persistent spreadsheet component that displays data from TableContext
+export const PersistentSpreadsheet = () => {
+  const { tableData, syncTableData } = useTableContext();
   const hotRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isClient, setIsClient] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  
-  // Track props data to detect AI updates
-  const lastPropsDataRef = useRef<string>(JSON.stringify(initialData));
-  const lastPropsHeadersRef = useRef<string>(JSON.stringify(initialColHeaders));
-  
+  const [containerHeight, setContainerHeight] = useState(400);
+
+  // Track context data to detect updates from AI
+  const lastContextDataRef = useRef<string>("");
+
   // Track if we're currently syncing to prevent loops
   const isSyncingRef = useRef(false);
 
   // Store colHeaders in ref for use in callbacks
-  const colHeadersRef = useRef(initialColHeaders);
-  colHeadersRef.current = initialColHeaders;
+  const colHeadersRef = useRef<string[] | undefined>(tableData?.colHeaders);
+
+  // Calculate container height on mount and resize
+  useEffect(() => {
+    const updateHeight = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setContainerHeight(rect.height > 0 ? rect.height : 400);
+      }
+    };
+
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    
+    // Also update after a short delay to handle initial render
+    const timeout = setTimeout(updateHeight, 100);
+    
+    return () => {
+      window.removeEventListener("resize", updateHeight);
+      clearTimeout(timeout);
+    };
+  }, [isClient]);
 
   // Load Handsontable only on client side
   useEffect(() => {
@@ -74,14 +126,14 @@ export const SpreadsheetTable = ({
     loadHandsontable();
   }, []);
 
-  // Save data to backend
+  // Save data to context and backend
   const saveData = useCallback(
-    async (data: CellValue[][]) => {
+    async (data: CellValue[][], colHeaders?: string[]) => {
       if (isSyncingRef.current) return;
 
       try {
         isSyncingRef.current = true;
-        await syncTableData(data, colHeadersRef.current);
+        await syncTableData(data, colHeaders || colHeadersRef.current);
       } catch (error) {
         console.error("Failed to save table data:", error);
       } finally {
@@ -91,182 +143,120 @@ export const SpreadsheetTable = ({
     [syncTableData]
   );
 
-  // Load initial data after Handsontable mounts
+  // Initialize with default or context data
   useEffect(() => {
     const hot = hotRef.current?.hotInstance;
     if (!hot || isInitialized) return;
 
-    // Load initial data with a deep clone to ensure mutability
-    const mutableData = deepClone(initialData);
+    const data = tableData?.data || DEFAULT_DATA;
+    const colHeaders = tableData?.colHeaders;
+    
+    const mutableData = deepClone(data);
     hot.loadData(mutableData);
     
-    // Update column headers
-    if (initialColHeaders) {
-      hot.updateSettings({ colHeaders: initialColHeaders });
+    if (colHeaders) {
+      hot.updateSettings({ colHeaders });
+      colHeadersRef.current = colHeaders;
     }
     
+    lastContextDataRef.current = JSON.stringify(tableData);
     setIsInitialized(true);
-    
-    // Sync to backend
-    saveData(initialData);
-  }, [isClient, initialData, initialColHeaders, isInitialized, saveData]);
+  }, [isClient, tableData, isInitialized]);
 
-  // Handle prop changes (AI updates) after initial load
+  // Handle context data changes (from AI updates via chat)
   useEffect(() => {
     const hot = hotRef.current?.hotInstance;
-    if (!hot || !isInitialized) return;
+    if (!hot || !isInitialized || isSyncingRef.current) return;
 
-    const propsDataStr = JSON.stringify(initialData);
-    const propsHeadersStr = JSON.stringify(initialColHeaders);
+    const contextDataStr = JSON.stringify(tableData);
     
-    // Check if data actually changed
-    if (propsDataStr !== lastPropsDataRef.current) {
-      lastPropsDataRef.current = propsDataStr;
+    // Only update if context data actually changed (from AI)
+    if (contextDataStr !== lastContextDataRef.current && tableData?.data) {
+      lastContextDataRef.current = contextDataStr;
       
-      // Load new data with a deep clone
-      const mutableData = deepClone(initialData);
+      const mutableData = deepClone(tableData.data);
       hot.loadData(mutableData);
       
-      // Sync to backend
-      saveData(initialData);
-    }
-    
-    // Update column headers if changed
-    if (propsHeadersStr !== lastPropsHeadersRef.current) {
-      lastPropsHeadersRef.current = propsHeadersStr;
-      hot.updateSettings({ colHeaders: initialColHeaders || true });
-    }
-  }, [initialData, initialColHeaders, isInitialized, saveData]);
-
-  // Safe wrapper for onAction that catches errors
-  const safeOnAction = useCallback(
-    (humanMessage: string, llmMessage: string) => {
-      try {
-        if (onAction) {
-          onAction(humanMessage, llmMessage);
-        }
-      } catch (error) {
-        console.debug("onAction not available:", error);
+      if (tableData.colHeaders) {
+        hot.updateSettings({ colHeaders: tableData.colHeaders });
+        colHeadersRef.current = tableData.colHeaders;
       }
-    },
-    [onAction]
-  );
+    }
+  }, [tableData, isInitialized]);
 
   // Autosave after changes
   const handleAfterChange = useCallback(
     (changes: CellChange[] | null, source: ChangeSource) => {
-      // Skip saving on initial data load
-      if (source === "loadData") {
-        return;
-      }
-
+      if (source === "loadData") return;
       if (!changes) return;
 
       const hot = hotRef.current?.hotInstance;
       if (!hot) return;
 
-      // Get all data and save it
       const allData = hot.getData() as CellValue[][];
       saveData(allData);
-
-      // Notify AI about user edits
-      if (source === "edit") {
-        const colHeaders = colHeadersRef.current;
-        const changeDescriptions = changes.map(([row, col, oldVal, newVal]) => {
-          const colName =
-            colHeaders && typeof col === "number" ? colHeaders[col] : `Column ${col}`;
-          return `Cell at row ${row + 1}, ${colName}: "${oldVal}" → "${newVal}"`;
-        });
-
-        safeOnAction(
-          "Cell Updated",
-          `User made the following changes to the spreadsheet:\n${changeDescriptions.join("\n")}`
-        );
-      }
     },
-    [saveData, safeOnAction]
+    [saveData]
   );
 
   // Handle row creation
-  const handleAfterCreateRow = useCallback(
-    (index: number, amount: number) => {
-      const hot = hotRef.current?.hotInstance;
-      if (hot) {
-        saveData(hot.getData() as CellValue[][]);
-        safeOnAction(
-          "Rows Added",
-          `User added ${amount} row(s) at position ${index + 1}`
-        );
-      }
-    },
-    [saveData, safeOnAction]
-  );
+  const handleAfterCreateRow = useCallback(() => {
+    const hot = hotRef.current?.hotInstance;
+    if (hot) {
+      saveData(hot.getData() as CellValue[][]);
+    }
+  }, [saveData]);
 
   // Handle row removal
-  const handleAfterRemoveRow = useCallback(
-    (index: number, amount: number) => {
-      const hot = hotRef.current?.hotInstance;
-      if (hot) {
-        saveData(hot.getData() as CellValue[][]);
-        safeOnAction(
-          "Rows Removed",
-          `User removed ${amount} row(s) starting at position ${index + 1}`
-        );
-      }
-    },
-    [saveData, safeOnAction]
-  );
+  const handleAfterRemoveRow = useCallback(() => {
+    const hot = hotRef.current?.hotInstance;
+    if (hot) {
+      saveData(hot.getData() as CellValue[][]);
+    }
+  }, [saveData]);
 
   // Handle column creation
-  const handleAfterCreateCol = useCallback(
-    (index: number, amount: number) => {
-      const hot = hotRef.current?.hotInstance;
-      if (hot) {
-        saveData(hot.getData() as CellValue[][]);
-        safeOnAction(
-          "Columns Added",
-          `User added ${amount} column(s) at position ${index + 1}`
-        );
-      }
-    },
-    [saveData, safeOnAction]
-  );
+  const handleAfterCreateCol = useCallback(() => {
+    const hot = hotRef.current?.hotInstance;
+    if (hot) {
+      saveData(hot.getData() as CellValue[][]);
+    }
+  }, [saveData]);
 
   // Handle column removal
-  const handleAfterRemoveCol = useCallback(
-    (index: number, amount: number) => {
-      const hot = hotRef.current?.hotInstance;
-      if (hot) {
-        saveData(hot.getData() as CellValue[][]);
-        safeOnAction(
-          "Columns Removed",
-          `User removed ${amount} column(s) starting at position ${index + 1}`
-        );
-      }
-    },
-    [saveData, safeOnAction]
-  );
+  const handleAfterRemoveCol = useCallback(() => {
+    const hot = hotRef.current?.hotInstance;
+    if (hot) {
+      saveData(hot.getData() as CellValue[][]);
+    }
+  }, [saveData]);
+
+  // Export to CSV
+  const handleExportCSV = useCallback(() => {
+    const hot = hotRef.current?.hotInstance;
+    if (!hot) return;
+
+    const exportPlugin = hot.getPlugin('exportFile');
+    exportPlugin?.downloadFile('csv', {
+      bom: false,
+      columnDelimiter: ',',
+      columnHeaders: true,
+      exportHiddenColumns: true,
+      exportHiddenRows: true,
+      fileExtension: 'csv',
+      filename: 'Spreadsheet_[YYYY]-[MM]-[DD]',
+      mimeType: 'text/csv',
+      rowDelimiter: '\r\n',
+      rowHeaders: false,
+    });
+  }, []);
 
   // Show loading state while Handsontable is loading
   if (!isClient || !HotTable || !HyperFormula) {
     return (
-      <div className="w-full rounded-xl border border-white/10 bg-gradient-to-b from-neutral-900/80 to-black/60 p-4 shadow-xl">
-        {title && (
-          <h3 className="mb-4 text-lg font-semibold tracking-tight text-neutral-100">
-            {title}
-          </h3>
-        )}
-        <div
-          className="flex items-center justify-center rounded-lg bg-neutral-800/50"
-          style={{ height }}
-        >
+      <div className="persistent-spreadsheet h-full flex flex-col">
+        <div className="flex-1 flex items-center justify-center bg-neutral-900/50 rounded-lg">
           <div className="text-neutral-400">Loading spreadsheet...</div>
-        </div>
-        <div className="mt-3 flex items-center justify-between text-xs text-neutral-400">
-          <span>
-            {initialData.length} rows × {initialColHeaders?.length || initialData[0]?.length || 0} columns
-          </span>
-          <span>Right-click for options • Formulas supported (=SUM, =AVERAGE, etc.)</span>
         </div>
       </div>
     );
@@ -274,22 +264,40 @@ export const SpreadsheetTable = ({
 
   const HotTableComponent = HotTable;
   const HyperFormulaEngine = HyperFormula;
+  const currentData = tableData?.data || DEFAULT_DATA;
+  const currentHeaders = tableData?.colHeaders;
 
   return (
-    <div className="w-full rounded-xl border border-white/10 bg-gradient-to-b from-neutral-900/80 to-black/60 p-4 shadow-xl">
-      {title && (
-        <h3 className="mb-4 text-lg font-semibold tracking-tight text-neutral-100">
-          {title}
-        </h3>
-      )}
-      <div className="overflow-hidden rounded-lg">
+    <div className="persistent-spreadsheet h-full flex flex-col">
+      <div className="flex-none px-4 py-3 border-b border-white/10">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-neutral-100">Spreadsheet</h2>
+            <p className="text-xs text-neutral-400 mt-1">
+              {currentData.length} rows × {currentHeaders?.length || currentData[0]?.length || 0} columns
+            </p>
+          </div>
+          <button
+            onClick={handleExportCSV}
+            className="px-3 py-1.5 text-sm bg-neutral-700 hover:bg-neutral-600 text-neutral-100 rounded-md transition-colors flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Export CSV
+          </button>
+        </div>
+      </div>
+      <div ref={containerRef} className="flex-1 overflow-hidden">
         <HotTableComponent
           ref={hotRef}
-          startRows={initialData.length}
-          startCols={initialColHeaders?.length || initialData[0]?.length || 6}
-          colHeaders={initialColHeaders || true}
+          startRows={currentData.length}
+          startCols={currentHeaders?.length || currentData[0]?.length || 6}
+          colHeaders={currentHeaders || true}
           rowHeaders={true}
-          height={height}
+          height={containerHeight}
           stretchH="all"
           formulas={{
             engine: HyperFormulaEngine,
@@ -323,11 +331,8 @@ export const SpreadsheetTable = ({
           licenseKey="non-commercial-and-evaluation"
         />
       </div>
-      <div className="mt-3 flex items-center justify-between text-xs text-neutral-400">
-        <span>
-          {initialData.length} rows × {initialColHeaders?.length || initialData[0]?.length || 0} columns
-        </span>
-        <span>Right-click for options • Formulas supported (=SUM, =AVERAGE, etc.)</span>
+      <div className="flex-none px-4 py-2 border-t border-white/10 text-xs text-neutral-400">
+        Right-click for options • Formulas supported (=SUM, =AVERAGE, etc.)
       </div>
     </div>
   );

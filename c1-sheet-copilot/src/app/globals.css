@@ -7,6 +7,13 @@
   --foreground: #ededed;
 }
 
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   color: var(--foreground);
   background: var(--background);
@@ -91,4 +98,59 @@ body {
 /* Composer input height override */
 .crayon-shell-thread-composer__input {
   height: unset !important;
+}
+
+/* Side-by-side layout */
+.app-layout {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.spreadsheet-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  background-color: #0f0f0f;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.chat-panel {
+  flex: 0 0 400px;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Persistent spreadsheet styling */
+.persistent-spreadsheet {
+  background-color: #0f0f0f;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.persistent-spreadsheet > div:first-child {
+  flex-shrink: 0;
+}
+
+.persistent-spreadsheet > div:nth-child(2) {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.persistent-spreadsheet > div:last-child {
+  flex-shrink: 0;
+}
+
+/* Ensure Handsontable is interactive */
+.persistent-spreadsheet .handsontable {
+  position: relative;
+  z-index: 1;
+}
+
+.persistent-spreadsheet .wtHolder {
+  width: 100% !important;
 }
